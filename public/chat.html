@@ -1,0 +1,155 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Chat App</title>
+    <link rel="stylesheet" href="/styles/style.css">
+</head>
+
+<body>
+    <h1>Chat App</h1>
+    <div id="chat-messages"></div>
+    <form id="message-form">
+        <input type="text" id="username" placeholder="Your name" required>
+        <input type="text" id="message-input" placeholder="Type your message..." required>
+        <button type="submit">Send</button>
+    </form>
+
+    <script src="https://cdn.socket.io/4.7.2/socket.io.min.js"></script>
+    <script>
+        // Debug flag
+        const DEBUG = true;
+
+        function log(...args) {
+            if (DEBUG) console.log(...args);
+        }
+
+        // Connect to the server with explicit URL
+        const socket = io('http://localhost:5000', {
+            transports: ['websocket', 'polling'],
+            reconnection: true,
+            reconnectionAttempts: 5,
+            reconnectionDelay: 1000,
+            timeout: 20000
+        });
+
+        // Debug connection status
+        socket.on('connect', () => {
+            log('Connected to server with ID:', socket.id);
+            document.title = 'Chat - Connected';
+        });
+
+        socket.on('disconnect', () => {
+            log('Disconnected from server');
+            document.title = 'Chat - Disconnected';
+        });
+
+        socket.on('connect_error', (error) => {
+            console.error('Connection error:', error);
+            document.title = 'Chat - Error';
+        });
+
+        // DOM elements
+        const chatMessages = document.getElementById('chat-messages');
+        const messageForm = document.getElementById('message-form');
+        const messageInput = document.getElementById('message-input');
+        const usernameInput = document.getElementById('username');
+
+        // Handle form submission
+        messageForm.addEventListener('submit', (e) => {
+            e.preventDefault();
+
+            const message = messageInput.value.trim();
+            const username = usernameInput.value.trim() || 'Anonymous';
+
+            if (message) {
+                log('Sending message:', { username, message });
+
+                // Send message to server
+                socket.emit('chat-message', {
+                    username,
+                    message
+                });
+
+                // Clear input
+                messageInput.value = '';
+            }
+        });
+
+        // Listen for chat history
+        socket.on('chat-history', (messages) => {
+            log('Received chat history:', messages);
+
+            // Clear existing messages
+            chatMessages.innerHTML = '';
+
+            // Add each message to the chat (reverse to show newest at bottom)
+            if (Array.isArray(messages) && messages.length > 0) {
+                // Sort messages in ascending order by timestamp for display
+                const sortedMessages = [...messages].sort((a, b) =>
+                    new Date(a.timestamp) - new Date(b.timestamp)
+                );
+
+                sortedMessages.forEach(msg => {
+                    addMessageToChat(msg, false); // Don't scroll for each message in history
+                });
+
+                // Scroll to bottom after loading all history
+                setTimeout(() => {
+                    chatMessages.scrollTo({
+                        top: chatMessages.scrollHeight,
+                        behavior: 'auto'
+                    });
+                }, 0);
+            } else {
+                log('No chat history or invalid format');
+            }
+        });
+
+        // Listen for new chat messages
+        socket.on('chat-message', (message) => {
+            log('Received new message:', message);
+            if (message && message.username && message.message) {
+                addMessageToChat(message, true); // Scroll for new messages
+            } else {
+                console.error('Received invalid message format:', message);
+            }
+        });
+
+        // Add a message to the chat UI
+        function addMessageToChat(msg, shouldScroll = true) {
+            if (!msg || !msg.username || !msg.message) {
+                console.error('Invalid message format:', msg);
+                return;
+            }
+
+            const messageElement = document.createElement('div');
+            messageElement.classList.add('message');
+            messageElement.innerHTML = `
+                <span class="username">${msg.username}:</span>
+                <span class="message-text">${msg.message}</span>
+                <span class="timestamp">${new Date(msg.timestamp || Date.now()).toLocaleString()}</span>
+            `;
+
+            chatMessages.appendChild(messageElement);
+
+            if (shouldScroll) {
+                // Scroll to bottom with smooth behavior for new messages
+                chatMessages.scrollTo({
+                    top: chatMessages.scrollHeight,
+                    behavior: 'smooth'
+                });
+            }
+        }
+
+        // Handle errors
+        socket.on('error', (error) => {
+            console.error('Socket error:', error);
+            alert(error.message || 'An error occurred');
+        });
+    </script>
+</body>
+
+</html>
