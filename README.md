@@ -23,7 +23,7 @@ A real-time chat application built with Node.js, Express, Socket.IO, and MySQL. 
 
 1. Clone the repository:
    ```bash
-   git clone https://github.com/yourusername/nodejs-chat-app.git
+   git clone https://github.com/mehdi-mh/nodejs-chat-app.git
    cd nodejs-chat-app
    ```
 
